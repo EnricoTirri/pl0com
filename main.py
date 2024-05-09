@@ -17,7 +17,6 @@ def compile_program(text):
     res = pars.program()
     print('\n', res, '\n')
 
-    return
     res.navigate(print_stat_list)
 
     node_list = get_node_list(res)
@@ -61,20 +60,21 @@ def compile_program(text):
     return code
 
 
-def driver_main():
-    from lexer import __test_program
-    test_program=__test_program
-    import sys
-    print(sys.argv)
-    if len(sys.argv) >= 2:
-        with open(sys.argv[1], 'r') as inf :
-            test_program = inf.read()
-    code = compile_program(test_program)
-
-    if len(sys.argv) > 2:
-        with open(sys.argv[-1], 'w') as outf :
-            outf.write(code)
+import sys
 
 
 if __name__ == '__main__':
-    driver_main()
+    if len(sys.argv) < 2:
+        print("error: you must provide at least a source file")
+        exit(1)
+
+    for source_file in sys.argv[1:]:
+        # let's solve later the problem of what to call the assembly file
+        output_file = "out.s"
+
+        with open(source_file, 'r') as f:
+            source = f.read()
+            code   = compile_program(source)
+
+        with open(output_file, 'w') as f:
+            f.write(code)
