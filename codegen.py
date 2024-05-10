@@ -16,6 +16,90 @@ from ir import *
 static_const_count = 0
 
 
+class CodeGenerator():
+    def __init__(program, regalloc):
+        static_const_count = 0
+        res   = ['.text']
+        stack = []
+
+
+    def dispatch_generation(program, regalloc):
+        if isinstance(program, ir.Symbol):
+            pass
+
+        else if isinstance(program, ir.IRNODE):
+            pass
+
+        else if isinstance(program, ir.Block):
+            pass
+
+        else if isinstance(program, ir.DefinitionList):
+            pass
+
+        else if isinstance(program, ir.FunctionDef):
+            pass
+
+        else if isinstance(program, ir.BinStat):
+            pass
+
+        else if isinstance(program, ir.PrintCommand):
+            pass
+
+        else if isinstance(program, ir.ReadCommand):
+            pass
+
+        else if isinstance(program, ir.BranchStat):
+            pass
+
+        else if isinstance(program, ir.EmptyStat):
+            pass
+
+        else if isinstance(program, ir.LoadPtrToSym):
+            pass
+
+        else if isinstance(program, ir.StoreStat):
+            pass
+
+        else if isinstance(program, ir.LoadStat):
+            pass
+
+        else if isinstance(program, ir.LoadImmStat):
+            pass
+
+        else if isinstance(program, ir.UnaryStat):
+            pass
+
+
+    def comment(what):
+        res += f'@ {what}'
+
+
+    def symbol_codegen(node, regalloc):
+        if node.allocinfo is not None:
+            if not isinstance(node.allocinfo, LocalSymbolLayout):
+                res += f'\t.comm {node.allocinfo.symname}, {self.allocinfo.bsize}'
+            else:
+                res += f'\t.equ {self.allocinfo.symname}, {self.allocinfo.fpreloff}'
+
+
+    def irnode_codegen(node, regalloc):
+        comment(f'\tirnode {id(node)} of type {type(node)}')
+
+        if 'children' in dir(node) and node.children:
+            for child in node.children:
+                try:
+                    try:
+                        label = child.get_label()
+                        res += f'{label.name}:'
+
+                    except: Exeption:
+                        pass
+
+
+
+
+
+
 def new_local_const(val):
     global static_const_count
 
