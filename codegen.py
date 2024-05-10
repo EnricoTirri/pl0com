@@ -12,20 +12,19 @@ is used for adding constant literals."""
 from datalayout import *
 from ir import *
 
-localconsti = 0
 
-
-def new_local_const_label():
-    global localconsti
-    lab = '.const' + repr(localconsti)
-    localconsti += 1
-    return lab
+static_const_count = 0
 
 
 def new_local_const(val):
-    lab = new_local_const_label()
-    trail = lab + ':\n\t.word ' + val + '\n'
-    return lab, trail
+    global static_const_count
+
+    label = f'.const {static_const_count}'
+    trail = f'{label}:\n\t.word {val}\n'
+
+    static_const_count += 1
+
+    return label, trail
 
 
 def symbol_codegen(self, regalloc):
@@ -37,7 +36,6 @@ def symbol_codegen(self, regalloc):
         return '\t.equ ' + self.allocinfo.symname + ', ' + repr(self.allocinfo.fpreloff) + "\n"
 
 
-Symbol.codegen = symbol_codegen
 
 
 def irnode_codegen(self, regalloc):
@@ -55,9 +53,6 @@ def irnode_codegen(self, regalloc):
                 res[0] += "\t" + comment("node " + repr(id(node)) + " did not generate any code")
                 res[0] += "\t" + comment("exc: " + repr(e))
     return res
-
-
-IRNode.codegen = irnode_codegen
 
 
 def block_codegen(self, regalloc):
@@ -95,23 +90,14 @@ def block_codegen(self, regalloc):
     return res[0] + res[1]
 
 
-Block.codegen = block_codegen
-
-
 def deflist_codegen(self, regalloc):
     return ''.join([child.codegen(regalloc) for child in self.children])
-
-
-DefinitionList.codegen = deflist_codegen
 
 
 def fun_codegen(self, regalloc):
     res = '\n' + self.symbol.name + ':\n'
     res += self.body.codegen(regalloc)
     return res
-
-
-FunctionDef.codegen = fun_codegen
 
 
 def binstat_codegen(self, regalloc):
@@ -158,9 +144,6 @@ def binstat_codegen(self, regalloc):
     return res + regalloc.gen_spill_store_if_necessary(self.dest)
 
 
-BinStat.codegen = binstat_codegen
-
-
 def print_codegen(self, regalloc):
     res = regalloc.gen_spill_load_if_necessary(self.src)
     rp = regalloc.get_register_for_variable(self.src)
@@ -169,9 +152,6 @@ def print_codegen(self, regalloc):
     res += '\tbl __pl0_print\n'
     res += restore_regs(REGS_CALLERSAVE)
     return res
-
-
-PrintCommand.codegen = print_codegen
 
 
 def read_codegen(self, regalloc):
@@ -189,9 +169,6 @@ def read_codegen(self, regalloc):
     res += restore_regs(savedregs)
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
-
-
-ReadCommand.codegen = read_codegen
 
 
 def branch_codegen(self, regalloc):
@@ -223,14 +200,8 @@ def branch_codegen(self, regalloc):
     return comment('impossible!')
 
 
-BranchStat.codegen = branch_codegen
-
-
 def emptystat_codegen(self, regalloc):
     return '\t' + comment('emptystat')
-
-
-EmptyStat.codegen = emptystat_codegen
 
 
 def ldptrto_codegen(self, regalloc):
@@ -249,9 +220,6 @@ def ldptrto_codegen(self, regalloc):
         trail += tmp
         res = '\tldr ' + rd + ', ' + lab + '\n'
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
-
-
-LoadPtrToSym.codegen = ldptrto_codegen
 
 
 def storestat_codegen(self, regalloc):
@@ -281,9 +249,6 @@ def storestat_codegen(self, regalloc):
     res += regalloc.gen_spill_load_if_necessary(self.symbol)
     rsrc = regalloc.get_register_for_variable(self.symbol)
     return [res + '\tstr' + typeid + ' ' + rsrc + ', ' + dest + '\n', trail]
-
-
-StoreStat.codegen = storestat_codegen
 
 
 def loadstat_codegen(self, regalloc):
@@ -316,9 +281,6 @@ def loadstat_codegen(self, regalloc):
     return [res, trail]
 
 
-LoadStat.codegen = loadstat_codegen
-
-
 def loadimm_codegen(self, regalloc):
     rd = regalloc.get_register_for_variable(self.dest)
     val = self.val
@@ -335,9 +297,6 @@ def loadimm_codegen(self, regalloc):
         lab, trail = new_local_const(repr(val))
         res = '\tldr ' + rd + ', ' + lab + '\n'
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
-
-
-LoadImmStat.codegen = loadimm_codegen
 
 
 def unarystat_codegen(self, regalloc):
@@ -358,11 +317,25 @@ def unarystat_codegen(self, regalloc):
     return res
 
 
-UnaryStat.codegen = unarystat_codegen
-
-
 def generate_code(program, regalloc):
     res = '\t.text\n'
     res += '\t.arch armv6\n'
     res += '\t.syntax unified\n'
     return res + program.codegen(regalloc)
+
+
+Symbol        .codegen = symbol_codegen
+IRNode        .codegen = irnode_codegen
+Block         .codegen = block_codegen
+DefinitionList.codegen = deflist_codegen
+FunctionDef   .codegen = fun_codegen
+BinStat       .codegen = binstat_codegen
+PrintCommand  .codegen = print_codegen
+ReadCommand   .codegen = read_codegen
+BranchStat    .codegen = branch_codegen
+EmptyStat     .codegen = emptystat_codegen
+LoadPtrToSym  .codegen = ldptrto_codegen
+StoreStat     .codegen = storestat_codegen
+LoadStat      .codegen = loadstat_codegen
+LoadImmStat   .codegen = loadimm_codegen
+UnaryStat     .codegen = unarystat_codegen
