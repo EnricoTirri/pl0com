@@ -64,6 +64,22 @@ class ArmCodeGenerator():
         return f'\tbl {label}\n'
 
 
+    def return_from_function(self):
+        return '\tbx lr\n'
+
+
+    def branch(self, label):
+        return f'\tb {label}\n'
+
+
+    def branch_equal(self, label):
+        return f'\tbeq {label}\n'
+
+
+    def branch_not_equal(self, label):
+        return f'\tbne {label}\n'
+
+
 def new_local_const(val):
     global static_const_count
 
@@ -123,7 +139,7 @@ def block_codegen(self, regalloc, generator):
 
     res[0] += '\tmov ' + generator.get_register_string(REG_SP) + ', ' + generator.get_register_string(REG_FP) + '\n'
     res[0] += generator.restore_registers(REGS_CALLEESAVE + [REG_FP, REG_LR])
-    res[0] += '\tbx lr\n'
+    res[0] += generator.return_from_function()
 
     res[0] = res[0] + res[1]
     res[1] = ''
@@ -221,12 +237,16 @@ def branch_codegen(self, regalloc, generator):
     targetl = self.target.name
     if not self.returns:
         if self.cond is None:
-            return '\tb ' + targetl + '\n'
+            return generator.branch(targetl)
         else:
             res = regalloc.gen_spill_load_if_necessary(self.cond)
             rcond = regalloc.get_register_for_variable(self.cond)
             res += '\ttst ' + rcond + ', ' + rcond + '\n'
-            return res + '\t' + ('beq' if self.negcond else 'bne') + ' ' + targetl + '\n'
+
+            if self.negcond:
+                return res + generator.branch_equal(targetl)
+            else:
+                return res + generator.branch_not_equal(targetl)
     else:
         if self.cond is None:
             res = generator.save_registers(REGS_CALLERSAVE)
@@ -234,6 +254,7 @@ def branch_codegen(self, regalloc, generator):
             res += generator.restore_registers(REGS_CALLERSAVE)
             return res
         else:
+            Exception("Not understood this part")
             res = regalloc.gen_spill_load_if_necessary(self.cond)
             rcond = regalloc.get_register_for_variable(self.cond)
             res += '\ttst ' + rcond + ', ' + rcond + '\n'
