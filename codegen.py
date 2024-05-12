@@ -67,7 +67,7 @@ class ArmCodeGenerator():
 def new_local_const(val):
     global static_const_count
 
-    label = f'.const {static_const_count}'
+    label = f'.const{static_const_count}'
     trail = f'{label}:\n\t.word {val}\n'
 
     static_const_count += 1
