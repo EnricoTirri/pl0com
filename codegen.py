@@ -80,6 +80,13 @@ class ArmCodeGenerator():
         return f'\tbne {label}\n'
 
 
+    def compare(self, op1, op2).
+        op1  = self.get_register_string(op1)
+        op2  = self.get_register_string(op2)
+
+        return f'\tcmp {op1}, {op2}\n'
+
+
     def add(self, dest, op1, op2):
         dest = self.get_register_string(dest)
         op1  = self.get_register_string(op1)
@@ -137,7 +144,43 @@ class ArmCodeGenerator():
         return f'\tmov {dest}, {src}\n'
 
 
-    def move_not(self, dest, src):
+    def mov_eq(self, dest, imm):
+        dest = self.get_register_string(dest)
+
+        return f'\tmoveq {dest}, #{imm}\n'
+
+
+    def mov_ne(self, dest, imm):
+        dest = self.get_register_string(dest)
+
+        return f'\tmovne {dest}, #{imm}\n'
+
+
+    def mov_lt(self, dest, imm):
+        dest = self.get_register_string(dest)
+
+        return f'\tmovlt {dest}, #{imm}\n'
+
+
+    def mov_gt(self, dest, imm):
+        dest = self.get_register_string(dest)
+
+        return f'\tmovgt {dest}, #{imm}\n'
+
+
+    def mov_ge(self, dest, imm):
+        dest = self.get_register_string(dest)
+
+        return f'\tmovge {dest}, #{imm}\n'
+
+
+    def mov_le(self, dest, imm):
+        dest = self.get_register_string(dest)
+
+        return f'\tmovle {dest}, #{imm}\n'
+
+
+    def move_negate(self, dest, src):
         dest = self.get_register_string(dest)
         src  = self.get_register_string(src)
 
@@ -244,32 +287,30 @@ def binstat_codegen(self, regalloc, generator):
         res += generator.mul(rd, ra, rb)
     elif self.op == "slash":
         res += generator.div(rd, ra, rb)
-
-    # TODO: still this operations missing
     elif self.op == "eql":
-        res += '\tcmp ' + param + '\n'
-        res += '\tmoveq ' + rdreg + ', #1\n'
-        res += '\tmovne ' + rdreg + ', #0\n'
+        res += generator.compare(ra, rb)
+        res += generator.move_eq(rd, 1)
+        res += generator.move_ne(rd, 0)
     elif self.op == "neq":
-        res += '\tcmp ' + param + '\n'
-        res += '\tmoveq ' + rdreg + ', #0\n'
-        res += '\tmovne ' + rdreg + ', #1\n'
+        res += generator.compare(ra, rb)
+        res += generator.move_eq(rd, 0)
+        res += generator.move_ne(rd, 1)
     elif self.op == "lss":
-        res += '\tcmp ' + param + '\n'
-        res += '\tmovlt ' + rdreg + ', #1\n'
-        res += '\tmovge ' + rdreg + ', #0\n'
+        res += generator.compare(ra, rb)
+        res += generator.move_lt(rd, 1)
+        res += generator.move_ge(rd, 0)
     elif self.op == "leq":
-        res += '\tcmp ' + param + '\n'
-        res += '\tmovle ' + rdreg + ', #1\n'
-        res += '\tmovgt ' + rdreg + ', #0\n'
+        res += generator.compare(ra, rb)
+        res += generator.move_le(rd, 1)
+        res += generator.move_gt(rd, 0)
     elif self.op == "gtr":
-        res += '\tcmp ' + param + '\n'
-        res += '\tmovgt ' + rdreg + ', #1\n'
-        res += '\tmovle ' + rdreg + ', #0\n'
+        res += generator.compare(ra, rb)
+        res += generator.move_gt(rd, 1)
+        res += generator.move_le(rd, 0)
     elif self.op == "geq":
-        res += '\tcmp ' + param + '\n'
-        res += '\tmovge ' + rdreg + ', #1\n'
-        res += '\tmovlt ' + rdreg + ', #0\n'
+        res += generator.compare(ra, rb)
+        res += generator.move_ge(rd, 1)
+        res += generator.move_lt(rd, 0)
     else:
         raise Exception("operation " + repr(self.op) + " unexpected")
     return res + regalloc.gen_spill_store_if_necessary(self.dest)
@@ -447,7 +488,7 @@ def unarystat_codegen(self, regalloc, generator):
         if rs != rd:
             res += generator.mov_reg_to_reg(rd, rs)
     elif self.op == 'minus':
-        res += generator.move_not(rd, rs)
+        res += generator.move_negate(rd, rs)
         res += generator.addi(rd, rd, 1)
     elif self.op == 'odd':
         res += generator.andi(rd, rs, 1)
