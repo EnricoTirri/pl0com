@@ -16,19 +16,47 @@ from ir import *
 static_const_count = 0
 
 
-class CodeGenerator():
+class ArmCodeGenerator():
     def __init__(self):
-        static_const_count = 0
-        res   = ['.text']
-        stack = []
-
-
-    def append(self, line):
-        res += line
+        self.calleesave = [4, 5, 6, 7, 8, 9, 10]
+        self.callersave = [0, 1, 2, 3]
 
 
     def comment(self, what):
-        self.append('@ {what}')
+        return f'@ {what}'
+
+
+    def get_register_string(self, regid):
+        if   regid == REG_LR:
+            return 'lr'
+        elif regid == REG_SP:
+            return 'sp'
+        else:
+            return f'r{regid}'
+
+
+    def save_registers(self, registers):
+        if len(registers):
+            line = '\tpush {' + self.get_register_string(registers[0])
+
+            for reg in registers[1:]:
+                line = line + f', {self.get_register_string(reg)}'
+
+            return line + '}\n'
+        else:
+            return ''
+
+
+    def restore_registers(self, registers):
+        if len(registers):
+            line = '\tpop {' + self.get_register_string(registers[0])
+
+            for reg in registers[1:]:
+                line = line + f', {self.get_register_string(reg)}'
+
+            return line + '}\n'
+        else:
+            return ''
 
 
 def new_local_const(val):
@@ -77,10 +105,10 @@ def block_codegen(self, regalloc, generator):
         res[0] += '\t.global __pl0_start\n'
         res[0] += "__pl0_start:\n"
 
-    res[0] += save_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
-    res[0] += '\tmov ' + get_register_string(REG_FP) + ', ' + get_register_string(REG_SP) + '\n'
+    res[0] += generator.save_registers(REGS_CALLEESAVE + [REG_FP, REG_LR])
+    res[0] += '\tmov ' + generator.get_register_string(REG_FP) + ', ' + generator.get_register_string(REG_SP) + '\n'
     stacksp = self.stackroom + regalloc.spill_room()
-    res[0] += '\tsub ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_SP) + ', #' + repr(stacksp) + '\n'
+    res[0] += '\tsub ' + generator.get_register_string(REG_SP) + ', ' + generator.get_register_string(REG_SP) + ', #' + repr(stacksp) + '\n'
 
     regalloc.enter_function_body(self)
     try:
@@ -88,8 +116,8 @@ def block_codegen(self, regalloc, generator):
     except Exception:
         pass
 
-    res[0] += '\tmov ' + get_register_string(REG_SP) + ', ' + get_register_string(REG_FP) + '\n'
-    res[0] += restore_regs(REGS_CALLEESAVE + [REG_FP, REG_LR])
+    res[0] += '\tmov ' + generator.get_register_string(REG_SP) + ', ' + generator.get_register_string(REG_FP) + '\n'
+    res[0] += generator.restore_registers(REGS_CALLEESAVE + [REG_FP, REG_LR])
     res[0] += '\tbx lr\n'
 
     res[0] = res[0] + res[1]
@@ -160,10 +188,10 @@ def binstat_codegen(self, regalloc, generator):
 def print_codegen(self, regalloc, generator):
     res = regalloc.gen_spill_load_if_necessary(self.src)
     rp = regalloc.get_register_for_variable(self.src)
-    res += save_regs(REGS_CALLERSAVE)
-    res += '\tmov ' + get_register_string(0) + ', ' + rp + '\n'
+    res += generator.save_registers(REGS_CALLERSAVE)
+    res += '\tmov ' + generator.get_register_string(0) + ', ' + rp + '\n'
     res += '\tbl __pl0_print\n'
-    res += restore_regs(REGS_CALLERSAVE)
+    res += generator.restore_registers(REGS_CALLERSAVE)
     return res
 
 
@@ -176,10 +204,10 @@ def read_codegen(self, regalloc, generator):
     if regalloc.vartoreg[self.dest] in savedregs:
         savedregs.remove(regalloc.vartoreg[self.dest])
 
-    res = save_regs(savedregs)
+    res = generator.save_registers(savedregs)
     res += '\tbl __pl0_read\n'
-    res += '\tmov ' + rd + ', ' + get_register_string(0) + '\n'
-    res += restore_regs(savedregs)
+    res += '\tmov ' + rd + ', ' + generator.get_register_string(0) + '\n'
+    res += generator.restore_registers(savedregs)
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
 
@@ -196,18 +224,18 @@ def branch_codegen(self, regalloc, generator):
             return res + '\t' + ('beq' if self.negcond else 'bne') + ' ' + targetl + '\n'
     else:
         if self.cond is None:
-            res = save_regs(REGS_CALLERSAVE)
+            res = generator.save_registers(REGS_CALLERSAVE)
             res += '\tbl ' + targetl + '\n'
-            res += restore_regs(REGS_CALLERSAVE)
+            res += generator.restore_registers(REGS_CALLERSAVE)
             return res
         else:
             res = regalloc.gen_spill_load_if_necessary(self.cond)
             rcond = regalloc.get_register_for_variable(self.cond)
             res += '\ttst ' + rcond + ', ' + rcond + '\n'
             res += '\t' + ('bne' if self.negcond else 'beq') + ' ' + rcond + ', 1f\n'
-            res += save_regs(REGS_CALLERSAVE)
+            res += generator.save_registers(REGS_CALLERSAVE)
             res += '\tbl ' + targetl + '\n'
-            res += restore_regs(REGS_CALLERSAVE)
+            res += generator.restore_registers(REGS_CALLERSAVE)
             res += '1:'
             return res
     return comment('impossible!')
@@ -225,9 +253,9 @@ def ldptrto_codegen(self, regalloc, generator):
     if type(ai) is LocalSymbolLayout:
         off = ai.fpreloff
         if off > 0:
-            res = '\tadd ' + rd + ', ' + get_register_string(REG_FP) + ', #' + repr(off) + '\n'
+            res = '\tadd ' + rd + ', ' + generator.get_register_string(REG_FP) + ', #' + repr(off) + '\n'
         else:
-            res = '\tsub ' + rd + ', ' + get_register_string(REG_FP) + ', #' + repr(-off) + '\n'
+            res = '\tsub ' + rd + ', ' + generator.get_register_string(REG_FP) + ', #' + repr(-off) + '\n'
     else:
         lab, tmp = new_local_const(ai.symname)
         trail += tmp
@@ -244,12 +272,12 @@ def storestat_codegen(self, regalloc, generator):
     else:
         ai = self.dest.allocinfo
         if type(ai) is LocalSymbolLayout:
-            dest = '[' + get_register_string(REG_FP) + ', #' + ai.symname + ']'
+            dest = '[' + generator.get_register_string(REG_FP) + ', #' + ai.symname + ']'
         else:
             lab, tmp = new_local_const(ai.symname)
             trail += tmp
-            res += '\tldr ' + get_register_string(REG_SCRATCH) + ', ' + lab + '\n'
-            dest = '[' + get_register_string(REG_SCRATCH) + ']'
+            res += '\tldr ' + generator.get_register_string(REG_SCRATCH) + ', ' + lab + '\n'
+            dest = '[' + generator.get_register_string(REG_SCRATCH) + ']'
 
     if type(self.dest.stype) is PointerType:
         desttype = self.dest.stype.pointstotype
@@ -273,12 +301,12 @@ def loadstat_codegen(self, regalloc, generator):
     else:
         ai = self.symbol.allocinfo
         if type(ai) is LocalSymbolLayout:
-            src = '[' + get_register_string(REG_FP) + ', #' + ai.symname + ']'
+            src = '[' + generator.get_register_string(REG_FP) + ', #' + ai.symname + ']'
         else:
             lab, tmp = new_local_const(ai.symname)
             trail += tmp
-            res += '\tldr ' + get_register_string(REG_SCRATCH) + ', ' + lab + '\n'
-            src = '[' + get_register_string(REG_SCRATCH) + ']'
+            res += '\tldr ' + generator.get_register_string(REG_SCRATCH) + ', ' + lab + '\n'
+            src = '[' + generator.get_register_string(REG_SCRATCH) + ']'
 
     if type(self.symbol.stype) is PointerType:
         desttype = self.symbol.stype.pointstotype
@@ -331,7 +359,7 @@ def unarystat_codegen(self, regalloc, generator):
 
 
 def generate_code(program, regalloc):
-    generator = CodeGenerator()
+    generator = ArmCodeGenerator()
 
     res = '\t.text\n'
     res += '\t.arch armv6\n'
