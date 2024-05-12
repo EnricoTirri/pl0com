@@ -59,6 +59,11 @@ class ArmCodeGenerator():
             return ''
 
 
+    def call_function(self, label):
+        # TODO: we might need to save some registers into the stack
+        return f'\tbl {label}\n'
+
+
 def new_local_const(val):
     global static_const_count
 
@@ -190,7 +195,7 @@ def print_codegen(self, regalloc, generator):
     rp = regalloc.get_register_for_variable(self.src)
     res += generator.save_registers(REGS_CALLERSAVE)
     res += '\tmov ' + generator.get_register_string(0) + ', ' + rp + '\n'
-    res += '\tbl __pl0_print\n'
+    res += generator.call_function('__pl0_print')
     res += generator.restore_registers(REGS_CALLERSAVE)
     return res
 
@@ -205,7 +210,7 @@ def read_codegen(self, regalloc, generator):
         savedregs.remove(regalloc.vartoreg[self.dest])
 
     res = generator.save_registers(savedregs)
-    res += '\tbl __pl0_read\n'
+    res += generator.call_function('__pl0_read')
     res += '\tmov ' + rd + ', ' + generator.get_register_string(0) + '\n'
     res += generator.restore_registers(savedregs)
     res += regalloc.gen_spill_store_if_necessary(self.dest)
@@ -225,7 +230,7 @@ def branch_codegen(self, regalloc, generator):
     else:
         if self.cond is None:
             res = generator.save_registers(REGS_CALLERSAVE)
-            res += '\tbl ' + targetl + '\n'
+            res += generator.call_function(targetl)
             res += generator.restore_registers(REGS_CALLERSAVE)
             return res
         else:
@@ -234,7 +239,7 @@ def branch_codegen(self, regalloc, generator):
             res += '\ttst ' + rcond + ', ' + rcond + '\n'
             res += '\t' + ('bne' if self.negcond else 'beq') + ' ' + rcond + ', 1f\n'
             res += generator.save_registers(REGS_CALLERSAVE)
-            res += '\tbl ' + targetl + '\n'
+            res += generator.call_function(targetl)
             res += generator.restore_registers(REGS_CALLERSAVE)
             res += '1:'
             return res
