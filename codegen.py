@@ -80,6 +80,70 @@ class ArmCodeGenerator():
         return f'\tbne {label}\n'
 
 
+    def add(self, dest, op1, op2):
+        dest = self.get_register_string(dest)
+        op1  = self.get_register_string(op1)
+        op2  = self.get_register_string(op2)
+
+        return f'\tadd {dest}, {op1}, {op2}\n'
+
+
+    def addi(self, dest, src, imm):
+        dest = self.get_register_string(dest)
+        src  = self.get_register_string(src)
+        return f'\tadd {dest}, {src}, #{imm}\n'
+
+
+    def andi(self, dest, src, imm):
+        dest = self.get_register_string(dest)
+        src  = self.get_register_string(src)
+        return f'\tand {dest}, {src}, #{imm}\n'
+
+
+    def sub(self, dest, op1, op2):
+        dest = self.get_register_string(dest)
+        op1  = self.get_register_string(op1)
+        op2  = self.get_register_string(op2)
+
+        return f'\tsub {dest}, {op1}, {op2}\n'
+
+
+    def subi(self, dest, src, imm):
+        dest = self.get_register_string(dest)
+        src  = self.get_register_string(src)
+        return f'\tsub {dest}, {src}, #{imm}\n'
+
+
+    def mul(self, dest, op1, op2):
+        dest = self.get_register_string(dest)
+        op1  = self.get_register_string(op1)
+        op2  = self.get_register_string(op2)
+
+        return f'\tmul {dest}, {op1}, {op2}\n'
+
+
+    def div(self, dest, op1, op2):
+        dest = self.get_register_string(dest)
+        op1  = self.get_register_string(op1)
+        op2  = self.get_register_string(op2)
+
+        return f'\tdiv {dest}, {op1}, {op2}\n'
+
+
+    def mov_reg_to_reg(self, dest, src):
+        dest = self.get_register_string(dest)
+        src  = self.get_register_string(src)
+
+        return f'\tmov {dest}, {src}\n'
+
+
+    def move_not(self, dest, src):
+        dest = self.get_register_string(dest)
+        src  = self.get_register_string(src)
+
+        return f'\tmvn {dest}, {src}\n'
+
+
 def new_local_const(val):
     global static_const_count
 
@@ -127,9 +191,9 @@ def block_codegen(self, regalloc, generator):
         res[0] += "__pl0_start:\n"
 
     res[0] += generator.save_registers(REGS_CALLEESAVE + [REG_FP, REG_LR])
-    res[0] += '\tmov ' + generator.get_register_string(REG_FP) + ', ' + generator.get_register_string(REG_SP) + '\n'
+    res[0] += generator.mov_reg_to_reg(REG_FP, REG_SP)
     stacksp = self.stackroom + regalloc.spill_room()
-    res[0] += '\tsub ' + generator.get_register_string(REG_SP) + ', ' + generator.get_register_string(REG_SP) + ', #' + repr(stacksp) + '\n'
+    res[0] += generator.subi(REG_SP, REG_SP, stacksp)
 
     regalloc.enter_function_body(self)
     try:
@@ -137,7 +201,7 @@ def block_codegen(self, regalloc, generator):
     except Exception:
         pass
 
-    res[0] += '\tmov ' + generator.get_register_string(REG_SP) + ', ' + generator.get_register_string(REG_FP) + '\n'
+    res[0] += generator.mov_reg_to_reg(REG_SP, REG_FP)
     res[0] += generator.restore_registers(REGS_CALLEESAVE + [REG_FP, REG_LR])
     res[0] += generator.return_from_function()
 
@@ -170,13 +234,15 @@ def binstat_codegen(self, regalloc, generator):
     rd = regalloc.get_register_for_variable(self.dest)
     param = ra + ', ' + rb
     if self.op == "plus":
-        res += '\tadd ' + rd + ', ' + param + '\n'
+        res += generator.add(rd, ra, rb)
     elif self.op == "minus":
-        res += '\tsub ' + rd + ', ' + param + '\n'
+        res += generator.sub(rd, ra, rb)
     elif self.op == "times":
-        res += '\tmul ' + rd + ', ' + param + '\n'
+        res += generator.mul(rd, ra, rb)
     elif self.op == "slash":
-        res += '\tdiv ' + rd + ', ' + param + '\n'
+        res += generator.div(rd, ra, rb)
+
+    # TODO: still this operations missing
     elif self.op == "eql":
         res += '\tcmp ' + param + '\n'
         res += '\tmoveq ' + rd + ', #1\n'
@@ -210,7 +276,7 @@ def print_codegen(self, regalloc, generator):
     res = regalloc.gen_spill_load_if_necessary(self.src)
     rp = regalloc.get_register_for_variable(self.src)
     res += generator.save_registers(REGS_CALLERSAVE)
-    res += '\tmov ' + generator.get_register_string(0) + ', ' + rp + '\n'
+    res += generator.mov_reg_to_reg(0, rp)
     res += generator.call_function('__pl0_print')
     res += generator.restore_registers(REGS_CALLERSAVE)
     return res
@@ -227,7 +293,7 @@ def read_codegen(self, regalloc, generator):
 
     res = generator.save_registers(savedregs)
     res += generator.call_function('__pl0_read')
-    res += '\tmov ' + rd + ', ' + generator.get_register_string(0) + '\n'
+    res += generator.mov_reg_to_reg(rd, 0)
     res += generator.restore_registers(savedregs)
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return res
@@ -279,9 +345,9 @@ def ldptrto_codegen(self, regalloc, generator):
     if type(ai) is LocalSymbolLayout:
         off = ai.fpreloff
         if off > 0:
-            res = '\tadd ' + rd + ', ' + generator.get_register_string(REG_FP) + ', #' + repr(off) + '\n'
+            res = generator.addi(rd, REG_FP, off)
         else:
-            res = '\tsub ' + rd + ', ' + generator.get_register_string(REG_FP) + ', #' + repr(-off) + '\n'
+            res = generator.subi(rd, REG_FP, -off)
     else:
         lab, tmp = new_local_const(ai.symname)
         trail += tmp
@@ -372,12 +438,12 @@ def unarystat_codegen(self, regalloc, generator):
     rd = regalloc.get_register_for_variable(self.dest)
     if self.op == 'plus':
         if rs != rd:
-            res += '\tmov ' + rd + ', ' + rs + '\n'
+            res += generator.mov_reg_to_reg(rd, rs)
     elif self.op == 'minus':
-        res += '\tmvn ' + rd + ', ' + rs + '\n'
-        res += '\tadd ' + rd + ', ' + rd + ', #1\n'
+        res += generator.move_not(rd, rs)
+        res += generator.addi(rd, rd, 1)
     elif self.op == 'odd':
-        res += '\tand ' + rd + ', ' + rs + ', #1\n'
+        res += generator.andi(rd, rs, 1)
     else:
         raise Exception("operation " + repr(self.op) + " unexpected")
     res += regalloc.gen_spill_store_if_necessary(self.dest)
