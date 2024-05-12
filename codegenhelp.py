@@ -72,15 +72,14 @@ def gen_spill_load_if_necessary(self, var):
         return ''
     offs = self.spillvarloctop - self.vartospillframeoffset[var] - 4
     rd = self.get_register_for_variable(var)
-    res = '\tldr ' + rd + ', [' + get_register_string(REG_FP) + ', #' + repr(offs) + ']'
+    res = '\tldr ' + get_register_string(rd) + ', [' + get_register_string(REG_FP) + ', #' + repr(offs) + ']'
     res += '\t' + comment('<<- fill')
     return res
 
 
 def get_register_for_variable(self, var):
     self.materialize_spilled_var_if_necessary(var)
-    res = get_register_string(self.vartoreg[var])
-    return res
+    return self.vartoreg[var]
 
 
 def gen_spill_store_if_necessary(self, var):
@@ -89,7 +88,7 @@ def gen_spill_store_if_necessary(self, var):
         return ''
     offs = self.spillvarloctop - self.vartospillframeoffset[var] - 4
     rd = self.get_register_for_variable(var)
-    res = '\tstr ' + rd + ', [' + get_register_string(REG_FP) + ', #' + repr(offs) + ']'
+    res = '\tstr ' + get_register_string(rd) + ', [' + get_register_string(REG_FP) + ', #' + repr(offs) + ']'
     res += '\t' + comment('<<- spill')
     self.dematerialize_spilled_var_if_necessary(var)
     return res

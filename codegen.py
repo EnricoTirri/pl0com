@@ -176,7 +176,7 @@ def irnode_codegen(self, regalloc, generator):
                     pass
                 res = codegen_append(res, node.codegen(regalloc, generator))
             except Exception as e:
-                res[0] += "\t" + comment("node " + repr(id(node)) + " did not generate any code")
+                res[0] += "\t" + comment("node " + repr(id(node)) + repr(type(node)) + " did not generate any code")
                 res[0] += "\t" + comment("exc: " + repr(e))
     return res
 
@@ -232,7 +232,10 @@ def binstat_codegen(self, regalloc, generator):
     ra = regalloc.get_register_for_variable(self.srca)
     rb = regalloc.get_register_for_variable(self.srcb)
     rd = regalloc.get_register_for_variable(self.dest)
-    param = ra + ', ' + rb
+
+    param = generator.get_register_string(ra) + ', ' + generator.get_register_string(rb)
+    rdreg = generator.get_register_string(rd)
+
     if self.op == "plus":
         res += generator.add(rd, ra, rb)
     elif self.op == "minus":
@@ -245,28 +248,28 @@ def binstat_codegen(self, regalloc, generator):
     # TODO: still this operations missing
     elif self.op == "eql":
         res += '\tcmp ' + param + '\n'
-        res += '\tmoveq ' + rd + ', #1\n'
-        res += '\tmovne ' + rd + ', #0\n'
+        res += '\tmoveq ' + rdreg + ', #1\n'
+        res += '\tmovne ' + rdreg + ', #0\n'
     elif self.op == "neq":
         res += '\tcmp ' + param + '\n'
-        res += '\tmoveq ' + rd + ', #0\n'
-        res += '\tmovne ' + rd + ', #1\n'
+        res += '\tmoveq ' + rdreg + ', #0\n'
+        res += '\tmovne ' + rdreg + ', #1\n'
     elif self.op == "lss":
         res += '\tcmp ' + param + '\n'
-        res += '\tmovlt ' + rd + ', #1\n'
-        res += '\tmovge ' + rd + ', #0\n'
+        res += '\tmovlt ' + rdreg + ', #1\n'
+        res += '\tmovge ' + rdreg + ', #0\n'
     elif self.op == "leq":
         res += '\tcmp ' + param + '\n'
-        res += '\tmovle ' + rd + ', #1\n'
-        res += '\tmovgt ' + rd + ', #0\n'
+        res += '\tmovle ' + rdreg + ', #1\n'
+        res += '\tmovgt ' + rdreg + ', #0\n'
     elif self.op == "gtr":
         res += '\tcmp ' + param + '\n'
-        res += '\tmovgt ' + rd + ', #1\n'
-        res += '\tmovle ' + rd + ', #0\n'
+        res += '\tmovgt ' + rdreg + ', #1\n'
+        res += '\tmovle ' + rdreg + ', #0\n'
     elif self.op == "geq":
         res += '\tcmp ' + param + '\n'
-        res += '\tmovge ' + rd + ', #1\n'
-        res += '\tmovlt ' + rd + ', #0\n'
+        res += '\tmovge ' + rdreg + ', #1\n'
+        res += '\tmovlt ' + rdreg + ', #0\n'
     else:
         raise Exception("operation " + repr(self.op) + " unexpected")
     return res + regalloc.gen_spill_store_if_necessary(self.dest)
@@ -307,6 +310,7 @@ def branch_codegen(self, regalloc, generator):
         else:
             res = regalloc.gen_spill_load_if_necessary(self.cond)
             rcond = regalloc.get_register_for_variable(self.cond)
+            rcond = generator.get_register_string(rcond)
             res += '\ttst ' + rcond + ', ' + rcond + '\n'
 
             if self.negcond:
@@ -323,6 +327,7 @@ def branch_codegen(self, regalloc, generator):
             Exception("Not understood this part")
             res = regalloc.gen_spill_load_if_necessary(self.cond)
             rcond = regalloc.get_register_for_variable(self.cond)
+            rcond = generator.get_register_string(rcond)
             res += '\ttst ' + rcond + ', ' + rcond + '\n'
             res += '\t' + ('bne' if self.negcond else 'beq') + ' ' + rcond + ', 1f\n'
             res += generator.save_registers(REGS_CALLERSAVE)
@@ -351,7 +356,7 @@ def ldptrto_codegen(self, regalloc, generator):
     else:
         lab, tmp = new_local_const(ai.symname)
         trail += tmp
-        res = '\tldr ' + rd + ', ' + lab + '\n'
+        res = '\tldr ' + generator.get_register_string(rd) + ', ' + lab + '\n'
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
 
 
@@ -360,7 +365,7 @@ def storestat_codegen(self, regalloc, generator):
     trail = ''
     if self.dest.alloct == 'reg':
         res += regalloc.gen_spill_load_if_necessary(self.dest)
-        dest = '[' + regalloc.get_register_for_variable(self.dest) + ']'
+        dest = '[' + generator.get_register_string(regalloc.get_register_for_variable(self.dest)) + ']'
     else:
         ai = self.dest.allocinfo
         if type(ai) is LocalSymbolLayout:
@@ -381,7 +386,7 @@ def storestat_codegen(self, regalloc, generator):
 
     res += regalloc.gen_spill_load_if_necessary(self.symbol)
     rsrc = regalloc.get_register_for_variable(self.symbol)
-    return [res + '\tstr' + typeid + ' ' + rsrc + ', ' + dest + '\n', trail]
+    return [res + '\tstr' + typeid + ' ' + generator.get_register_string(rsrc) + ', ' + dest + '\n', trail]
 
 
 def loadstat_codegen(self, regalloc, generator):
@@ -389,7 +394,7 @@ def loadstat_codegen(self, regalloc, generator):
     trail = ''
     if self.symbol.alloct == 'reg':
         res += regalloc.gen_spill_load_if_necessary(self.symbol)
-        src = '[' + regalloc.get_register_for_variable(self.symbol) + ']'
+        src = '[' + generator.get_register_string(regalloc.get_register_for_variable(self.symbol)) + ']'
     else:
         ai = self.symbol.allocinfo
         if type(ai) is LocalSymbolLayout:
@@ -409,13 +414,15 @@ def loadstat_codegen(self, regalloc, generator):
         typeid = 's' + type
 
     rdst = regalloc.get_register_for_variable(self.dest)
-    res += '\tldr' + typeid + ' ' + rdst + ', ' + src + '\n'
+    res += '\tldr' + typeid + ' ' + generator.get_register_string(rdst) + ', ' + src + '\n'
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return [res, trail]
 
 
 def loadimm_codegen(self, regalloc, generator):
     rd = regalloc.get_register_for_variable(self.dest)
+    rd = generator.get_register_string(rd)
+
     val = self.val
     if val >= -256 and val < 256:
         if val < 0:
