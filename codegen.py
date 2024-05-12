@@ -80,7 +80,14 @@ class ArmCodeGenerator():
         return f'\tbne {label}\n'
 
 
-    def compare(self, op1, op2).
+    def test(self, op1, op2):
+        op1  = self.get_register_string(op1)
+        op2  = self.get_register_string(op2)
+
+        return f'\ttst {op1}, {op2}\n'
+
+
+    def compare(self, op1, op2):
         op1  = self.get_register_string(op1)
         op2  = self.get_register_string(op2)
 
@@ -187,6 +194,12 @@ class ArmCodeGenerator():
         return f'\tmvn {dest}, {src}\n'
 
 
+    def load_addr(self, dest, addr):
+        dest = self.get_register_string(dest)
+
+        return f'\tldr {dest}, {addr}\n'
+
+
 def new_local_const(val):
     global static_const_count
 
@@ -276,9 +289,6 @@ def binstat_codegen(self, regalloc, generator):
     rb = regalloc.get_register_for_variable(self.srcb)
     rd = regalloc.get_register_for_variable(self.dest)
 
-    param = generator.get_register_string(ra) + ', ' + generator.get_register_string(rb)
-    rdreg = generator.get_register_string(rd)
-
     if self.op == "plus":
         res += generator.add(rd, ra, rb)
     elif self.op == "minus":
@@ -351,8 +361,7 @@ def branch_codegen(self, regalloc, generator):
         else:
             res = regalloc.gen_spill_load_if_necessary(self.cond)
             rcond = regalloc.get_register_for_variable(self.cond)
-            rcond = generator.get_register_string(rcond)
-            res += '\ttst ' + rcond + ', ' + rcond + '\n'
+            res += generator.test(rcond, rcond)
 
             if self.negcond:
                 return res + generator.branch_equal(targetl)
@@ -368,8 +377,7 @@ def branch_codegen(self, regalloc, generator):
             Exception("Not understood this part")
             res = regalloc.gen_spill_load_if_necessary(self.cond)
             rcond = regalloc.get_register_for_variable(self.cond)
-            rcond = generator.get_register_string(rcond)
-            res += '\ttst ' + rcond + ', ' + rcond + '\n'
+            res += generator.test(rcond, rcond)
             res += '\t' + ('bne' if self.negcond else 'beq') + ' ' + rcond + ', 1f\n'
             res += generator.save_registers(REGS_CALLERSAVE)
             res += generator.call_function(targetl)
@@ -397,10 +405,11 @@ def ldptrto_codegen(self, regalloc, generator):
     else:
         lab, tmp = new_local_const(ai.symname)
         trail += tmp
-        res = '\tldr ' + generator.get_register_string(rd) + ', ' + lab + '\n'
+        res = generator.load_addr(rd, lab)
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
 
 
+# TODO: the actual difficult part of this file
 def storestat_codegen(self, regalloc, generator):
     res = ''
     trail = ''
@@ -443,7 +452,7 @@ def loadstat_codegen(self, regalloc, generator):
         else:
             lab, tmp = new_local_const(ai.symname)
             trail += tmp
-            res += '\tldr ' + generator.get_register_string(REG_SCRATCH) + ', ' + lab + '\n'
+            res += generator.load_addr(REG_SCRATCH, lab)
             src = '[' + generator.get_register_string(REG_SCRATCH) + ']'
 
     if type(self.symbol.stype) is PointerType:
@@ -476,7 +485,7 @@ def loadimm_codegen(self, regalloc, generator):
         trail = ''
     else:
         lab, trail = new_local_const(repr(val))
-        res = '\tldr ' + rd + ', ' + lab + '\n'
+        res += generator.load_addr(rd, lab)
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
 
 
