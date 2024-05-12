@@ -17,87 +17,18 @@ static_const_count = 0
 
 
 class CodeGenerator():
-    def __init__(program, regalloc):
+    def __init__(self):
         static_const_count = 0
         res   = ['.text']
         stack = []
 
 
-    def dispatch_generation(program, regalloc):
-        if isinstance(program, ir.Symbol):
-            pass
-
-        else if isinstance(program, ir.IRNODE):
-            pass
-
-        else if isinstance(program, ir.Block):
-            pass
-
-        else if isinstance(program, ir.DefinitionList):
-            pass
-
-        else if isinstance(program, ir.FunctionDef):
-            pass
-
-        else if isinstance(program, ir.BinStat):
-            pass
-
-        else if isinstance(program, ir.PrintCommand):
-            pass
-
-        else if isinstance(program, ir.ReadCommand):
-            pass
-
-        else if isinstance(program, ir.BranchStat):
-            pass
-
-        else if isinstance(program, ir.EmptyStat):
-            pass
-
-        else if isinstance(program, ir.LoadPtrToSym):
-            pass
-
-        else if isinstance(program, ir.StoreStat):
-            pass
-
-        else if isinstance(program, ir.LoadStat):
-            pass
-
-        else if isinstance(program, ir.LoadImmStat):
-            pass
-
-        else if isinstance(program, ir.UnaryStat):
-            pass
+    def append(self, line):
+        res += line
 
 
-    def comment(what):
-        res += f'@ {what}'
-
-
-    def symbol_codegen(node, regalloc):
-        if node.allocinfo is not None:
-            if not isinstance(node.allocinfo, LocalSymbolLayout):
-                res += f'\t.comm {node.allocinfo.symname}, {self.allocinfo.bsize}'
-            else:
-                res += f'\t.equ {self.allocinfo.symname}, {self.allocinfo.fpreloff}'
-
-
-    def irnode_codegen(node, regalloc):
-        comment(f'\tirnode {id(node)} of type {type(node)}')
-
-        if 'children' in dir(node) and node.children:
-            for child in node.children:
-                try:
-                    try:
-                        label = child.get_label()
-                        res += f'{label.name}:'
-
-                    except: Exeption:
-                        pass
-
-
-
-
+    def comment(self, what):
+        self.append('@ {what}')
 
 
 def new_local_const(val):
@@ -111,7 +42,7 @@ def new_local_const(val):
     return label, trail
 
 
-def symbol_codegen(self, regalloc):
+def symbol_codegen(self, regalloc, generator):
     if self.allocinfo is None:
         return ""
     if not isinstance(self.allocinfo, LocalSymbolLayout):
@@ -120,9 +51,7 @@ def symbol_codegen(self, regalloc):
         return '\t.equ ' + self.allocinfo.symname + ', ' + repr(self.allocinfo.fpreloff) + "\n"
 
 
-
-
-def irnode_codegen(self, regalloc):
+def irnode_codegen(self, regalloc, generator):
     res = ['\t' + comment("irnode " + repr(id(self)) + ' type ' + repr(type(self))), '']
     if 'children' in dir(self) and len(self.children):
         for node in self.children:
@@ -132,17 +61,17 @@ def irnode_codegen(self, regalloc):
                     res[0] += labl.name + ':\n'
                 except Exception:
                     pass
-                res = codegen_append(res, node.codegen(regalloc))
+                res = codegen_append(res, node.codegen(regalloc, generator))
             except Exception as e:
                 res[0] += "\t" + comment("node " + repr(id(node)) + " did not generate any code")
                 res[0] += "\t" + comment("exc: " + repr(e))
     return res
 
 
-def block_codegen(self, regalloc):
+def block_codegen(self, regalloc, generator):
     res = [comment('block'), '']
     for sym in self.symtab:
-        res = codegen_append(res, sym.codegen(regalloc))
+        res = codegen_append(res, sym.codegen(regalloc, generator))
 
     if self.parent is None:
         res[0] += '\t.global __pl0_start\n'
@@ -155,7 +84,7 @@ def block_codegen(self, regalloc):
 
     regalloc.enter_function_body(self)
     try:
-        res = codegen_append(res, self.body.codegen(regalloc))
+        res = codegen_append(res, self.body.codegen(regalloc, generator))
     except Exception:
         pass
 
@@ -167,24 +96,24 @@ def block_codegen(self, regalloc):
     res[1] = ''
 
     try:
-        res = codegen_append(res, self.defs.codegen(regalloc))
+        res = codegen_append(res, self.defs.codegen(regalloc, generator))
     except Exception:
         pass
 
     return res[0] + res[1]
 
 
-def deflist_codegen(self, regalloc):
-    return ''.join([child.codegen(regalloc) for child in self.children])
+def deflist_codegen(self, regalloc, generator):
+    return ''.join([child.codegen(regalloc, generator) for child in self.children])
 
 
-def fun_codegen(self, regalloc):
+def fun_codegen(self, regalloc, generator):
     res = '\n' + self.symbol.name + ':\n'
-    res += self.body.codegen(regalloc)
+    res += self.body.codegen(regalloc, generator)
     return res
 
 
-def binstat_codegen(self, regalloc):
+def binstat_codegen(self, regalloc, generator):
     res = regalloc.gen_spill_load_if_necessary(self.srca)
     res += regalloc.gen_spill_load_if_necessary(self.srcb)
     ra = regalloc.get_register_for_variable(self.srca)
@@ -228,7 +157,7 @@ def binstat_codegen(self, regalloc):
     return res + regalloc.gen_spill_store_if_necessary(self.dest)
 
 
-def print_codegen(self, regalloc):
+def print_codegen(self, regalloc, generator):
     res = regalloc.gen_spill_load_if_necessary(self.src)
     rp = regalloc.get_register_for_variable(self.src)
     res += save_regs(REGS_CALLERSAVE)
@@ -238,7 +167,7 @@ def print_codegen(self, regalloc):
     return res
 
 
-def read_codegen(self, regalloc):
+def read_codegen(self, regalloc, generator):
     rd = regalloc.get_register_for_variable(self.dest)
 
     # punch a hole in the saved registers if one of them is the destination
@@ -255,7 +184,7 @@ def read_codegen(self, regalloc):
     return res
 
 
-def branch_codegen(self, regalloc):
+def branch_codegen(self, regalloc, generator):
     targetl = self.target.name
     if not self.returns:
         if self.cond is None:
@@ -284,11 +213,11 @@ def branch_codegen(self, regalloc):
     return comment('impossible!')
 
 
-def emptystat_codegen(self, regalloc):
+def emptystat_codegen(self, regalloc, generator):
     return '\t' + comment('emptystat')
 
 
-def ldptrto_codegen(self, regalloc):
+def ldptrto_codegen(self, regalloc, generator):
     rd = regalloc.get_register_for_variable(self.dest)
     res = ''
     trail = ''
@@ -306,7 +235,7 @@ def ldptrto_codegen(self, regalloc):
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
 
 
-def storestat_codegen(self, regalloc):
+def storestat_codegen(self, regalloc, generator):
     res = ''
     trail = ''
     if self.dest.alloct == 'reg':
@@ -335,7 +264,7 @@ def storestat_codegen(self, regalloc):
     return [res + '\tstr' + typeid + ' ' + rsrc + ', ' + dest + '\n', trail]
 
 
-def loadstat_codegen(self, regalloc):
+def loadstat_codegen(self, regalloc, generator):
     res = ''
     trail = ''
     if self.symbol.alloct == 'reg':
@@ -365,7 +294,7 @@ def loadstat_codegen(self, regalloc):
     return [res, trail]
 
 
-def loadimm_codegen(self, regalloc):
+def loadimm_codegen(self, regalloc, generator):
     rd = regalloc.get_register_for_variable(self.dest)
     val = self.val
     if val >= -256 and val < 256:
@@ -383,7 +312,7 @@ def loadimm_codegen(self, regalloc):
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
 
 
-def unarystat_codegen(self, regalloc):
+def unarystat_codegen(self, regalloc, generator):
     res = regalloc.gen_spill_load_if_necessary(self.src)
     rs = regalloc.get_register_for_variable(self.src)
     rd = regalloc.get_register_for_variable(self.dest)
@@ -402,10 +331,12 @@ def unarystat_codegen(self, regalloc):
 
 
 def generate_code(program, regalloc):
+    generator = CodeGenerator()
+
     res = '\t.text\n'
     res += '\t.arch armv6\n'
     res += '\t.syntax unified\n'
-    return res + program.codegen(regalloc)
+    return res + program.codegen(regalloc, generator)
 
 
 Symbol        .codegen = symbol_codegen
