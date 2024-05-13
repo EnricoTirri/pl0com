@@ -483,17 +483,16 @@ def loadstat_codegen(self, regalloc, generator):
 
 def loadimm_codegen(self, regalloc, generator):
     rd = regalloc.get_register_for_variable(self.dest)
-    rd = generator.get_register_string(rd)
 
     val = self.val
     if val >= -256 and val < 256:
         if val < 0:
-            rv = -val - 1
-            op = 'mvn '
+            res = generator.move_negate(rd, -val - 1)
         else:
-            rv = val
-            op = 'mov '
-        res = '\t' + op + rd + ', #' + repr(rv) + '\n'
+            # workaround
+            res = generator.sub(rd, rd, rd)
+            res += generator.addi(rd, rd, val)
+
         trail = ''
     else:
         lab, trail = new_local_const(repr(val))
