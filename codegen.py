@@ -200,6 +200,36 @@ class ArmCodeGenerator():
         return f'\tldr {dest}, {addr}\n'
 
 
+    def load_byte(self, dest, from_where, offset = None):
+        dest = self.get_register_string(dest)
+        from_where = self.get_register_string(from_where)
+
+        if offset is None:
+            return f'\tldrb {dest}, [{from_where}]\n'
+        else:
+            return f'\tldrb {dest}, [{from_where}, #{offset}]\n'
+
+
+    def load_halfword(self, dest, from_where, offset = None):
+        dest = self.get_register_string(dest)
+        from_where = self.get_register_string(from_where)
+
+        if offset is None:
+            return f'\tldrh {dest}, [{from_where}]\n'
+        else:
+            return f'\tldrh {dest}, [{from_where}, #{offset}]\n'
+
+
+    def load(self, dest, from_where, offset = None):
+        dest = self.get_register_string(dest)
+        from_where = self.get_register_string(from_where)
+
+        if offset is None:
+            return f'\tldr {dest}, [{from_where}]\n'
+        else:
+            return f'\tldr {dest}, [{from_where}, #{offset}]\n'
+
+
     def store(self, what, dest, offset = None):
         dest = self.get_register_string(dest)
         what = self.get_register_string(what)
@@ -208,6 +238,26 @@ class ArmCodeGenerator():
             return f'\tstr {what}, [{dest}]\n'
         else:
             return f'\tstr {what}, [{dest}, #{offset}]\n'
+
+
+    def store_halfword(self, what, dest, offset = None):
+        dest = self.get_register_string(dest)
+        what = self.get_register_string(what)
+
+        if offset is None:
+            return f'\tstrh {what}, [{dest}]\n'
+        else:
+            return f'\tstrh {what}, [{dest}, #{offset}]\n'
+
+
+    def store_byte(self, what, dest, offset = None):
+        dest = self.get_register_string(dest)
+        what = self.get_register_string(what)
+
+        if offset is None:
+            return f'\tstrb {what}, [{dest}]\n'
+        else:
+            return f'\tstrb {what}, [{dest}, #{offset}]\n'
 
 
 def new_local_const(val):
@@ -423,18 +473,27 @@ def ldptrto_codegen(self, regalloc, generator):
 def storestat_codegen(self, regalloc, generator):
     res = ''
     trail = ''
+
+    dest = None
+    offset = None
+
+
     if self.dest.alloct == 'reg':
         res += regalloc.gen_spill_load_if_necessary(self.dest)
-        dest = '[' + generator.get_register_string(regalloc.get_register_for_variable(self.dest)) + ']'
+        dest = regalloc.get_register_for_variable(self.dest)
     else:
         ai = self.dest.allocinfo
         if type(ai) is LocalSymbolLayout:
-            dest = '[' + generator.get_register_string(REG_FP) + ', #' + ai.symname + ']'
+            dest = REG_FP
+            offset = ai.symname
+
+            # dest = '[' + generator.get_register_string(REG_FP) + ', #' + ai.symname + ']'
         else:
             lab, tmp = new_local_const(ai.symname)
             trail += tmp
             res += generator.load_addr(REG_SCRATCH, lab)
-            dest = '[' + generator.get_register_string(REG_SCRATCH) + ']'
+            dest = REG_SCRATCH
+            # dest = '[' + generator.get_register_string(REG_SCRATCH) + ']'
 
     if type(self.dest.stype) is PointerType:
         desttype = self.dest.stype.pointstotype
@@ -448,24 +507,46 @@ def storestat_codegen(self, regalloc, generator):
     rsrc = regalloc.get_register_for_variable(self.symbol)
 
 
-    return [res + '\tstr' + typeid + ' ' + generator.get_register_string(rsrc) + ', ' + dest + '\n', trail]
+    if typeid == 'b':
+        res += generator.store_byte(rsrc, dest, offset)
+    elif typeid == 'h':
+        res += generator.store_halfword(rsrc, dest, offset)
+    elif typeid is None:
+        res += generator.store(rsrc, dest, offset)
+    else:
+        Exception(typeid)
+
+
+    return [res, trail]
 
 
 def loadstat_codegen(self, regalloc, generator):
     res = ''
     trail = ''
+
+    source = None
+    offset = None
+
+
     if self.symbol.alloct == 'reg':
         res += regalloc.gen_spill_load_if_necessary(self.symbol)
-        src = '[' + generator.get_register_string(regalloc.get_register_for_variable(self.symbol)) + ']'
+        source = regalloc.get_register_for_variable(self.symbol)
+
+        # src = '[' + generator.get_register_string(regalloc.get_register_for_variable(self.symbol)) + ']'
     else:
         ai = self.symbol.allocinfo
         if type(ai) is LocalSymbolLayout:
-            src = '[' + generator.get_register_string(REG_FP) + ', #' + ai.symname + ']'
+            source = REG_FP
+            offset = ai.symname
+
+            # src = '[' + generator.get_register_string(REG_FP) + ', #' + ai.symname + ']'
         else:
             lab, tmp = new_local_const(ai.symname)
             trail += tmp
             res += generator.load_addr(REG_SCRATCH, lab)
-            src = '[' + generator.get_register_string(REG_SCRATCH) + ']'
+
+            source = REG_SCRATCH
+            # src = '[' + generator.get_register_string(REG_SCRATCH) + ']'
 
     if type(self.symbol.stype) is PointerType:
         desttype = self.symbol.stype.pointstotype
@@ -476,7 +557,16 @@ def loadstat_codegen(self, regalloc, generator):
         typeid = 's' + type
 
     rdst = regalloc.get_register_for_variable(self.dest)
-    res += '\tldr' + typeid + ' ' + generator.get_register_string(rdst) + ', ' + src + '\n'
+
+    if typeid == 'b':
+        res += generator.load_byte(rdst, source, offset)
+    elif typeid == 'h':
+        res += generator.load_halfword(rdst, source, offset)
+    elif typeid is None:
+        res += generator.load(rdst, source, offset)
+    else:
+        Exception(typeid)
+    
     res += regalloc.gen_spill_store_if_necessary(self.dest)
     return [res, trail]
 
