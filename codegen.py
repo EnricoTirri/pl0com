@@ -23,7 +23,7 @@ class ArmCodeGenerator():
 
 
     def comment(self, what):
-        return f'@ {what}'
+        return f'@ {what}\n'
 
 
     def get_register_string(self, regid):
@@ -200,6 +200,16 @@ class ArmCodeGenerator():
         return f'\tldr {dest}, {addr}\n'
 
 
+    def store(self, what, dest, offset = None):
+        dest = self.get_register_string(dest)
+        what = self.get_register_string(what)
+
+        if offset is None:
+            return f'\tstr {what}, [{dest}]\n'
+        else:
+            return f'\tstr {what}, [{dest}, #{offset}]\n'
+
+
 def new_local_const(val):
     global static_const_count
 
@@ -221,7 +231,7 @@ def symbol_codegen(self, regalloc, generator):
 
 
 def irnode_codegen(self, regalloc, generator):
-    res = ['\t' + comment("irnode " + repr(id(self)) + ' type ' + repr(type(self))), '']
+    res = ['\t' + generator.comment("irnode " + repr(id(self)) + ' type ' + repr(type(self))), '']
     if 'children' in dir(self) and len(self.children):
         for node in self.children:
             try:
@@ -232,13 +242,13 @@ def irnode_codegen(self, regalloc, generator):
                     pass
                 res = codegen_append(res, node.codegen(regalloc, generator))
             except Exception as e:
-                res[0] += "\t" + comment("node " + repr(id(node)) + repr(type(node)) + " did not generate any code")
-                res[0] += "\t" + comment("exc: " + repr(e))
+                res[0] += "\t" + generator.comment("node " + repr(id(node)) + repr(type(node)) + " did not generate any code")
+                res[0] += "\t" + generator.comment("exc: " + repr(e))
     return res
 
 
 def block_codegen(self, regalloc, generator):
-    res = [comment('block'), '']
+    res = [generator.comment('block'), '']
     for sym in self.symtab:
         res = codegen_append(res, sym.codegen(regalloc, generator))
 
@@ -299,28 +309,28 @@ def binstat_codegen(self, regalloc, generator):
         res += generator.div(rd, ra, rb)
     elif self.op == "eql":
         res += generator.compare(ra, rb)
-        res += generator.move_eq(rd, 1)
-        res += generator.move_ne(rd, 0)
+        res += generator.mov_eq(rd, 1)
+        res += generator.mov_ne(rd, 0)
     elif self.op == "neq":
         res += generator.compare(ra, rb)
-        res += generator.move_eq(rd, 0)
-        res += generator.move_ne(rd, 1)
+        res += generator.mov_eq(rd, 0)
+        res += generator.mov_ne(rd, 1)
     elif self.op == "lss":
         res += generator.compare(ra, rb)
-        res += generator.move_lt(rd, 1)
-        res += generator.move_ge(rd, 0)
+        res += generator.mov_lt(rd, 1)
+        res += generator.mov_ge(rd, 0)
     elif self.op == "leq":
         res += generator.compare(ra, rb)
-        res += generator.move_le(rd, 1)
-        res += generator.move_gt(rd, 0)
+        res += generator.mov_le(rd, 1)
+        res += generator.mov_gt(rd, 0)
     elif self.op == "gtr":
         res += generator.compare(ra, rb)
-        res += generator.move_gt(rd, 1)
-        res += generator.move_le(rd, 0)
+        res += generator.mov_gt(rd, 1)
+        res += generator.mov_le(rd, 0)
     elif self.op == "geq":
         res += generator.compare(ra, rb)
-        res += generator.move_ge(rd, 1)
-        res += generator.move_lt(rd, 0)
+        res += generator.mov_ge(rd, 1)
+        res += generator.mov_lt(rd, 0)
     else:
         raise Exception("operation " + repr(self.op) + " unexpected")
     return res + regalloc.gen_spill_store_if_necessary(self.dest)
@@ -384,11 +394,11 @@ def branch_codegen(self, regalloc, generator):
             res += generator.restore_registers(REGS_CALLERSAVE)
             res += '1:'
             return res
-    return comment('impossible!')
+    return generator.comment('impossible!')
 
 
 def emptystat_codegen(self, regalloc, generator):
-    return '\t' + comment('emptystat')
+    return '\t' + generator.comment('emptystat')
 
 
 def ldptrto_codegen(self, regalloc, generator):
@@ -423,7 +433,7 @@ def storestat_codegen(self, regalloc, generator):
         else:
             lab, tmp = new_local_const(ai.symname)
             trail += tmp
-            res += '\tldr ' + generator.get_register_string(REG_SCRATCH) + ', ' + lab + '\n'
+            res += generator.load_addr(REG_SCRATCH, lab)
             dest = '[' + generator.get_register_string(REG_SCRATCH) + ']'
 
     if type(self.dest.stype) is PointerType:
@@ -436,6 +446,8 @@ def storestat_codegen(self, regalloc, generator):
 
     res += regalloc.gen_spill_load_if_necessary(self.symbol)
     rsrc = regalloc.get_register_for_variable(self.symbol)
+
+
     return [res + '\tstr' + typeid + ' ' + generator.get_register_string(rsrc) + ', ' + dest + '\n', trail]
 
 
@@ -485,7 +497,7 @@ def loadimm_codegen(self, regalloc, generator):
         trail = ''
     else:
         lab, trail = new_local_const(repr(val))
-        res += generator.load_addr(rd, lab)
+        res = generator.load_addr(rd, lab)
     return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
 
 
