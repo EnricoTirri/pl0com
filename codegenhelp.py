@@ -65,7 +65,7 @@ def enter_function_body(self, block):
     self.spillvarloctop = -block.stackroom
 
 
-def gen_spill_load_if_necessary(self, var):
+def gen_spill_load_if_necessary(self, var, generator):
     self.dematerialize_spilled_var_if_necessary(var)
     if not self.materialize_spilled_var_if_necessary(var):
         # not a spilled variable
@@ -82,7 +82,7 @@ def get_register_for_variable(self, var):
     return self.vartoreg[var]
 
 
-def gen_spill_store_if_necessary(self, var):
+def gen_spill_store_if_necessary(self, var, generator):
     if not self.materialize_spilled_var_if_necessary(var):
         # not a spilled variable
         return ''

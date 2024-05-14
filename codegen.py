@@ -344,8 +344,8 @@ def fun_codegen(self, regalloc, generator):
 
 def binstat_codegen(self, regalloc, generator):
     res = generator.comment(f'\tbinstat {id(self)} of type {type(self)}')
-    res += regalloc.gen_spill_load_if_necessary(self.srca)
-    res += regalloc.gen_spill_load_if_necessary(self.srcb)
+    res += regalloc.gen_spill_load_if_necessary(self.srca, generator)
+    res += regalloc.gen_spill_load_if_necessary(self.srcb, generator)
     ra = regalloc.get_register_for_variable(self.srca)
     rb = regalloc.get_register_for_variable(self.srcb)
     rd = regalloc.get_register_for_variable(self.dest)
@@ -384,12 +384,12 @@ def binstat_codegen(self, regalloc, generator):
         res += generator.mov_lt(rd, 0)
     else:
         raise Exception("operation " + repr(self.op) + " unexpected")
-    return res + regalloc.gen_spill_store_if_necessary(self.dest)
+    return res + regalloc.gen_spill_store_if_necessary(self.dest, generator)
 
 
 def print_codegen(self, regalloc, generator):
     res = generator.comment(f'\tprint {id(self)} of type {type(self)}')
-    res += regalloc.gen_spill_load_if_necessary(self.src)
+    res += regalloc.gen_spill_load_if_necessary(self.src, generator)
     rp = regalloc.get_register_for_variable(self.src)
     res += generator.save_registers(REGS_CALLERSAVE)
     res += generator.mov_reg_to_reg(0, rp)
@@ -412,7 +412,7 @@ def read_codegen(self, regalloc, generator):
     res += generator.call_function('__pl0_read')
     res += generator.mov_reg_to_reg(rd, 0)
     res += generator.restore_registers(savedregs)
-    res += regalloc.gen_spill_store_if_necessary(self.dest)
+    res += regalloc.gen_spill_store_if_necessary(self.dest, generator)
     return res
 
 
@@ -424,7 +424,7 @@ def branch_codegen(self, regalloc, generator):
         if self.cond is None:
             return generator.branch(targetl)
         else:
-            res += regalloc.gen_spill_load_if_necessary(self.cond)
+            res += regalloc.gen_spill_load_if_necessary(self.cond, generator)
             rcond = regalloc.get_register_for_variable(self.cond)
             res += generator.test(rcond, rcond)
 
@@ -440,7 +440,7 @@ def branch_codegen(self, regalloc, generator):
             return res
         else:
             Exception("Not understood this part")
-            res += regalloc.gen_spill_load_if_necessary(self.cond)
+            res += regalloc.gen_spill_load_if_necessary(self.cond, generator)
             rcond = regalloc.get_register_for_variable(self.cond)
             res += generator.test(rcond, rcond)
             res += '\t' + ('bne' if self.negcond else 'beq') + ' ' + rcond + ', 1f\n'
@@ -472,7 +472,7 @@ def ldptrto_codegen(self, regalloc, generator):
         lab, tmp = new_local_const(ai.symname)
         trail += tmp
         res += generator.load_addr(rd, lab)
-    return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
+    return [res + regalloc.gen_spill_store_if_necessary(self.dest, generator), trail]
 
 
 # TODO: the actual difficult part of this file
@@ -485,7 +485,7 @@ def storestat_codegen(self, regalloc, generator):
 
 
     if self.dest.alloct == 'reg':
-        res += regalloc.gen_spill_load_if_necessary(self.dest)
+        res += regalloc.gen_spill_load_if_necessary(self.dest, generator)
         dest = regalloc.get_register_for_variable(self.dest)
     else:
         ai = self.dest.allocinfo
@@ -509,7 +509,7 @@ def storestat_codegen(self, regalloc, generator):
     if typeid != '' and 'unsigned' in desttype.qual_list:
         typeid = 's' + type
 
-    res += regalloc.gen_spill_load_if_necessary(self.symbol)
+    res += regalloc.gen_spill_load_if_necessary(self.symbol, generator)
     rsrc = regalloc.get_register_for_variable(self.symbol)
 
 
@@ -535,7 +535,7 @@ def loadstat_codegen(self, regalloc, generator):
 
 
     if self.symbol.alloct == 'reg':
-        res += regalloc.gen_spill_load_if_necessary(self.symbol)
+        res += regalloc.gen_spill_load_if_necessary(self.symbol, generator)
         source = regalloc.get_register_for_variable(self.symbol)
 
         # src = '[' + generator.get_register_string(regalloc.get_register_for_variable(self.symbol)) + ']'
@@ -573,7 +573,7 @@ def loadstat_codegen(self, regalloc, generator):
     else:
         Exception(typeid)
     
-    res += regalloc.gen_spill_store_if_necessary(self.dest)
+    res += regalloc.gen_spill_store_if_necessary(self.dest, generator)
     return [res, trail]
 
 
@@ -594,12 +594,12 @@ def loadimm_codegen(self, regalloc, generator):
     else:
         lab, trail = new_local_const(repr(val))
         res += generator.load_addr(rd, lab)
-    return [res + regalloc.gen_spill_store_if_necessary(self.dest), trail]
+    return [res + regalloc.gen_spill_store_if_necessary(self.dest, generator), trail]
 
 
 def unarystat_codegen(self, regalloc, generator):
     res = generator.comment(f'\tunarystat {id(self)} of type {type(self)}')
-    res += regalloc.gen_spill_load_if_necessary(self.src)
+    res += regalloc.gen_spill_load_if_necessary(self.src, generator)
     rs = regalloc.get_register_for_variable(self.src)
     rd = regalloc.get_register_for_variable(self.dest)
     if self.op == 'plus':
@@ -612,7 +612,7 @@ def unarystat_codegen(self, regalloc, generator):
         res += generator.andi(rd, rs, 1)
     else:
         raise Exception("operation " + repr(self.op) + " unexpected")
-    res += regalloc.gen_spill_store_if_necessary(self.dest)
+    res += regalloc.gen_spill_store_if_necessary(self.dest, generator)
     return res
 
 
