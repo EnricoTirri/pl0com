@@ -49,7 +49,9 @@ def compile_program(text):
     cfg.print_cfg_to_dot("cfg.dot")
 
     print("\n\nREGALLOC\n\n")
-    ra = LinearScanRegisterAllocator(cfg, 11)
+
+    # by changing this line, we limit the number of available registers
+    ra = LinearScanRegisterAllocator(cfg, 3)
     reg_alloc = ra()
     print(reg_alloc)
 
