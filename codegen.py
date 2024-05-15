@@ -16,14 +16,272 @@ from ir import *
 static_const_count = 0
 
 
+class x86CodeGenerator():
+    def __init__(self):
+        self.type = 'x86'
+        self.REGS_CALLEESAVE = []
+        self.REGS_CALLERSAVE = [0, 1, 2, 3]
+        self.REG_SCRATCH = 4
+        self.REG_FP = 50
+
+
+        self.map = {
+            0: '%rdi',
+            1: '%rax',
+            2: '%rbx',
+            3: '%rcx',
+            4: '%rdx',
+            self.REG_FP: '%ebp'
+        }
+
+    def comment(self, what):
+        return f'# {what}\n'
+
+
+    def get_register_string(self, regid):
+        return self.map[regid]
+
+
+    def save_registers(self, registers):
+        res = ''
+
+        if len(registers) > 0:
+            for r in registers:
+                regstr = self.get_register_string(r)
+                res += f'\tpush {regstr}\n'
+
+        return res
+
+
+    def restore_registers(self, registers):
+        res = ''
+
+        if len(registers):
+            for r in reversed(registers):
+                regstr = self.get_register_string(r)
+                res += f'\tpop {regstr}\n'
+
+        return res
+
+
+    def call_function(self, label):
+        return f'\tcall {label}\n'
+
+
+    def return_from_function(self):
+        return '\tret\n'
+
+
+    def branch(self, label):
+        return f'\tj {label}\n'
+
+
+    def branch_equal(self, label):
+        return f'\tjeq {label}\n'
+
+
+    def branch_not_equal(self, label):
+        return f'\tjne {label}\n'
+
+
+    def test(self, op1, op2):
+        op1  = self.get_register_string(op1)
+        op2  = self.get_register_string(op2)
+
+        return f'\ttst {op1}, {op2}\n'
+
+
+    def compare(self, op1, op2):
+        op1  = self.get_register_string(op1)
+        op2  = self.get_register_string(op2)
+
+        return f'\tcmp {op1}, {op2}\n'
+
+
+    def add(self, dest, op1, op2):
+        dest = self.get_register_string(dest)
+        op1  = self.get_register_string(op1)
+        op2  = self.get_register_string(op2)
+
+        return f'\tadd {op1}, {op2}, {dest}\n'
+
+
+    def addi(self, dest, src, imm):
+        dest = self.get_register_string(dest)
+        src  = self.get_register_string(src)
+        return f'\tadd {src}, ${imm}, {dest}\n'
+
+
+    def andi(self, dest, src, imm):
+        dest = self.get_register_string(dest)
+        src  = self.get_register_string(src)
+        return f'\tand ${imm}, {src}, {dest}\n'
+
+
+    def sub(self, dest, op1, op2):
+        dest = self.get_register_string(dest)
+        op1  = self.get_register_string(op1)
+        op2  = self.get_register_string(op2)
+
+        return f'\tsub {op1}, {op2}, {dest} \n'
+
+
+    def subi(self, dest, src, imm):
+        dest = self.get_register_string(dest)
+        src  = self.get_register_string(src)
+        return f'\tsub {src}, ${imm}, {dest}\n'
+
+
+    def mul(self, dest, op1, op2):
+        dest = self.get_register_string(dest)
+        op1  = self.get_register_string(op1)
+        op2  = self.get_register_string(op2)
+
+        return f'\tmul {op1}, {op2}, {dest}\n'
+
+
+    def div(self, dest, op1, op2):
+        dest = self.get_register_string(dest)
+        op1  = self.get_register_string(op1)
+        op2  = self.get_register_string(op2)
+
+        return f'\tdiv {op1}, {op2}, {dest}\n'
+
+
+    def mov_reg_to_reg(self, dest, src):
+        dest = self.get_register_string(dest)
+        src  = self.get_register_string(src)
+
+        return f'\tmov {src}, {dest}\n'
+
+
+    def mov_eq(self, dest, imm):
+        dest = self.get_register_string(dest)
+
+        return f'\tmoveq ${imm}, {dest}\n'
+
+
+    def mov_ne(self, dest, imm):
+        dest = self.get_register_string(dest)
+
+        return f'\tmovne ${imm}, {dest}\n'
+
+
+    def mov_lt(self, dest, imm):
+        dest = self.get_register_string(dest)
+
+        return f'\tmovlt ${imm}, {dest}\n'
+
+
+    def mov_gt(self, dest, imm):
+        dest = self.get_register_string(dest)
+
+        return f'\tmovgt {dest}, ${imm}, {dest}\n'
+
+
+    def mov_ge(self, dest, imm):
+        dest = self.get_register_string(dest)
+
+        return f'\tmovge ${imm}, {dest}\n'
+
+
+    def mov_le(self, dest, imm):
+        dest = self.get_register_string(dest)
+
+        return f'\tmovle ${imm}, {dest}\n'
+
+
+    def move_negate(self, dest, src):
+        dest = self.get_register_string(dest)
+        src  = self.get_register_string(src)
+
+        return f'\tmov {src}, {dest}\n\tneg {dest}\n'
+
+
+    def load_addr(self, dest, addr):
+        dest = self.get_register_string(dest)
+
+        return f'\tmov ${addr}, {dest}\n'
+
+
+    def load_byte(self, dest, from_where, offset = None):
+        dest = self.get_register_string(dest)
+        from_where = self.get_register_string(from_where)
+
+        if offset is None:
+            return f'\tmovb ({from_where}), {dest}\n'
+        else:
+            return f'\tmovb ({from_where}, {offset}), {dest}\n'
+
+
+    def load_halfword(self, dest, from_where, offset = None):
+        dest = self.get_register_string(dest)
+        from_where = self.get_register_string(from_where)
+
+        if offset is None:
+            return f'\tmovh ({from_where}), {dest}\n'
+        else:
+            return f'\tmovh ({from_where}, {offset}), {dest}\n'
+
+
+    def load(self, dest, from_where, offset = None):
+        dest = self.get_register_string(dest)
+        from_where = self.get_register_string(from_where)
+
+        if offset is None:
+            return f'\tmov ({from_where}), {dest}\n'
+        else:
+            return f'\tmov ({from_where}, {offset}), {dest}\n'
+
+
+    def store(self, what, dest, offset = None):
+        dest = self.get_register_string(dest)
+        what = self.get_register_string(what)
+
+        if offset is None:
+            return f'\tmov {what}, ({dest})\n'
+        else:
+            return f'\tmov {what}, ({dest}, {offset})\n'
+
+
+    def store_halfword(self, what, dest, offset = None):
+        dest = self.get_register_string(dest)
+        what = self.get_register_string(what)
+
+        if offset is None:
+            return f'\tmovh {what}, ({dest})\n'
+        else:
+            return f'\tmovh {what}, ({dest}, {offset})\n'
+
+
+    def store_byte(self, what, dest, offset = None):
+        dest = self.get_register_string(dest)
+        what = self.get_register_string(what)
+
+        if offset is None:
+            return f'\tmovb {what}, ({dest})\n'
+        else:
+            return f'\tmovb {what}, ({dest}, {offset})\n'
+
+
+
+
 class ArmCodeGenerator():
     def __init__(self):
-        self.calleesave = [4, 5, 6, 7, 8, 9, 10]
-        self.callersave = [0, 1, 2, 3]
+        self.type = 'arm'
+
+        self.REG_FP = 11
+        self.REG_SCRATCH = 12
+        self.REG_SP = 13
+        self.REG_LR = 14
+        self.REG_PC = 15
+
+        self.REGS_CALLEESAVE = [4, 5, 6, 7, 8, 9, 10]
+        self.REGS_CALLERSAVE = [0, 1, 2, 3]
 
 
     def comment(self, what):
-        return f'@ {what}\n'
+        return f'\t@ {what}\n'
 
 
     def get_register_string(self, regid):
@@ -99,7 +357,10 @@ class ArmCodeGenerator():
         op1  = self.get_register_string(op1)
         op2  = self.get_register_string(op2)
 
-        return f'\tadd {dest}, {op1}, {op2}\n'
+        if dest == op1:
+            return f'\tadd {dest}, {op2}\n'
+        else:
+            return f'\tadd {dest}, {op1}, {op2}\n'
 
 
     def addi(self, dest, src, imm):
@@ -281,7 +542,7 @@ def symbol_codegen(self, regalloc, generator):
 
 
 def irnode_codegen(self, regalloc, generator):
-    res = ['\t' + generator.comment("irnode " + repr(id(self)) + ' type ' + repr(type(self))), '']
+    res = [generator.comment("irnode " + repr(id(self)) + ' type ' + repr(type(self))), '']
     if 'children' in dir(self) and len(self.children):
         for node in self.children:
             try:
@@ -306,10 +567,11 @@ def block_codegen(self, regalloc, generator):
         res[0] += '\t.global __pl0_start\n'
         res[0] += "__pl0_start:\n"
 
-    res[0] += generator.save_registers(REGS_CALLEESAVE + [REG_FP, REG_LR])
-    res[0] += generator.mov_reg_to_reg(REG_FP, REG_SP)
-    stacksp = self.stackroom + regalloc.spill_room()
-    res[0] += generator.subi(REG_SP, REG_SP, stacksp)
+    if generator.type == 'arm':
+        res[0] += generator.save_registers(REGS_CALLEESAVE + [REG_FP, REG_LR])
+        res[0] += generator.mov_reg_to_reg(REG_FP, REG_SP)
+        stacksp = self.stackroom + regalloc.spill_room()
+        res[0] += generator.subi(REG_SP, REG_SP, stacksp)
 
     regalloc.enter_function_body(self)
     try:
@@ -317,8 +579,10 @@ def block_codegen(self, regalloc, generator):
     except Exception:
         pass
 
-    res[0] += generator.mov_reg_to_reg(REG_SP, REG_FP)
-    res[0] += generator.restore_registers(REGS_CALLEESAVE + [REG_FP, REG_LR])
+    if generator.type == 'arm':
+        res[0] += generator.mov_reg_to_reg(REG_SP, REG_FP)
+        res[0] += generator.restore_registers(REGS_CALLEESAVE + [REG_FP, REG_LR])
+
     res[0] += generator.return_from_function()
 
     res[0] = res[0] + res[1]
@@ -343,7 +607,7 @@ def fun_codegen(self, regalloc, generator):
 
 
 def binstat_codegen(self, regalloc, generator):
-    res = generator.comment(f'\tbinstat {id(self)} of type {type(self)}')
+    res = generator.comment(f'binstat {id(self)} of type {type(self)}')
     res += regalloc.gen_spill_load_if_necessary(self.srca, generator)
     res += regalloc.gen_spill_load_if_necessary(self.srcb, generator)
     ra = regalloc.get_register_for_variable(self.srca)
@@ -388,24 +652,24 @@ def binstat_codegen(self, regalloc, generator):
 
 
 def print_codegen(self, regalloc, generator):
-    res = generator.comment(f'\tprint {id(self)} of type {type(self)}')
+    res = generator.comment(f'print {id(self)} of type {type(self)}')
     res += regalloc.gen_spill_load_if_necessary(self.src, generator)
     rp = regalloc.get_register_for_variable(self.src)
-    res += generator.save_registers(REGS_CALLERSAVE)
+    res += generator.save_registers(generator.REGS_CALLERSAVE)
     res += generator.mov_reg_to_reg(0, rp)
     res += generator.call_function('__pl0_print')
-    res += generator.restore_registers(REGS_CALLERSAVE)
+    res += generator.restore_registers(generator.REGS_CALLERSAVE)
     return res
 
 
 def read_codegen(self, regalloc, generator):
-    res = generator.comment(f'\tread {id(self)} of type {type(self)}')
+    res = generator.comment(f'read {id(self)} of type {type(self)}')
     rd = regalloc.get_register_for_variable(self.dest)
 
     # punch a hole in the saved registers if one of them is the destination
     # of this "instruction"
-    savedregs = list(REGS_CALLERSAVE)
-    if regalloc.vartoreg[self.dest] in savedregs:
+    savedregs = list(generator.REGS_CALLERSAVE)
+    if len(savedregs) > 0 and regalloc.vartoreg[self.dest] in savedregs:
         savedregs.remove(regalloc.vartoreg[self.dest])
 
     res += generator.save_registers(savedregs)
@@ -417,7 +681,7 @@ def read_codegen(self, regalloc, generator):
 
 
 def branch_codegen(self, regalloc, generator):
-    res = generator.comment(f'\tbranch {id(self)} of type {type(self)}')
+    res = generator.comment(f'branch {id(self)} of type {type(self)}')
 
     targetl = self.target.name
     if not self.returns:
@@ -434,9 +698,9 @@ def branch_codegen(self, regalloc, generator):
                 return res + generator.branch_not_equal(targetl)
     else:
         if self.cond is None:
-            res += generator.save_registers(REGS_CALLERSAVE)
+            res += generator.save_registers(generator.REGS_CALLERSAVE)
             res += generator.call_function(targetl)
-            res += generator.restore_registers(REGS_CALLERSAVE)
+            res += generator.restore_registers(generator.REGS_CALLERSAVE)
             return res
         else:
             Exception("Not understood this part")
@@ -444,20 +708,20 @@ def branch_codegen(self, regalloc, generator):
             rcond = regalloc.get_register_for_variable(self.cond)
             res += generator.test(rcond, rcond)
             res += '\t' + ('bne' if self.negcond else 'beq') + ' ' + rcond + ', 1f\n'
-            res += generator.save_registers(REGS_CALLERSAVE)
+            res += generator.save_registers(generator.REGS_CALLERSAVE)
             res += generator.call_function(targetl)
-            res += generator.restore_registers(REGS_CALLERSAVE)
+            res += generator.restore_registers(generator.REGS_CALLERSAVE)
             res += '1:'
             return res
     return generator.comment('impossible!')
 
 
 def emptystat_codegen(self, regalloc, generator):
-    return '\t' + generator.comment('emptystat')
+    return generator.comment('emptystat')
 
 
 def ldptrto_codegen(self, regalloc, generator):
-    res = generator.comment(f'\tldptrto {id(self)} of type {type(self)}')
+    res = generator.comment(f'ldptrto {id(self)} of type {type(self)}')
     rd = regalloc.get_register_for_variable(self.dest)
 
     trail = ''
@@ -477,7 +741,7 @@ def ldptrto_codegen(self, regalloc, generator):
 
 # TODO: the actual difficult part of this file
 def storestat_codegen(self, regalloc, generator):
-    res = generator.comment(f'\tstorestat {id(self)} of type {type(self)}')
+    res = generator.comment(f'storestat {id(self)} of type {type(self)}')
     trail = ''
 
     dest = None
@@ -490,15 +754,15 @@ def storestat_codegen(self, regalloc, generator):
     else:
         ai = self.dest.allocinfo
         if type(ai) is LocalSymbolLayout:
-            dest = REG_FP
+            dest = generator.REG_FP
             offset = ai.symname
 
             # dest = '[' + generator.get_register_string(REG_FP) + ', #' + ai.symname + ']'
         else:
             lab, tmp = new_local_const(ai.symname)
             trail += tmp
-            res += generator.load_addr(REG_SCRATCH, lab)
-            dest = REG_SCRATCH
+            res += generator.load_addr(generator.REG_SCRATCH, lab)
+            dest = generator.REG_SCRATCH
             # dest = '[' + generator.get_register_string(REG_SCRATCH) + ']'
 
     if type(self.dest.stype) is PointerType:
@@ -527,7 +791,7 @@ def storestat_codegen(self, regalloc, generator):
 
 
 def loadstat_codegen(self, regalloc, generator):
-    res = generator.comment(f'\tloadstat {id(self)} of type {type(self)}')
+    res = generator.comment(f'loadstat {id(self)} of type {type(self)}')
     trail = ''
 
     source = None
@@ -542,16 +806,16 @@ def loadstat_codegen(self, regalloc, generator):
     else:
         ai = self.symbol.allocinfo
         if type(ai) is LocalSymbolLayout:
-            source = REG_FP
+            source = generator.REG_FP
             offset = ai.symname
 
             # src = '[' + generator.get_register_string(REG_FP) + ', #' + ai.symname + ']'
         else:
             lab, tmp = new_local_const(ai.symname)
             trail += tmp
-            res += generator.load_addr(REG_SCRATCH, lab)
+            res += generator.load_addr(generator.REG_SCRATCH, lab)
 
-            source = REG_SCRATCH
+            source = generator.REG_SCRATCH
             # src = '[' + generator.get_register_string(REG_SCRATCH) + ']'
 
     if type(self.symbol.stype) is PointerType:
@@ -578,7 +842,7 @@ def loadstat_codegen(self, regalloc, generator):
 
 
 def loadimm_codegen(self, regalloc, generator):
-    res = generator.comment(f'\tloadimm {id(self)} of type {type(self)}')
+    res = generator.comment(f'loadimm {id(self)} of type {type(self)}')
     rd = regalloc.get_register_for_variable(self.dest)
 
     val = self.val
@@ -598,7 +862,7 @@ def loadimm_codegen(self, regalloc, generator):
 
 
 def unarystat_codegen(self, regalloc, generator):
-    res = generator.comment(f'\tunarystat {id(self)} of type {type(self)}')
+    res = generator.comment(f'unarystat {id(self)} of type {type(self)}')
     res += regalloc.gen_spill_load_if_necessary(self.src, generator)
     rs = regalloc.get_register_for_variable(self.src)
     rd = regalloc.get_register_for_variable(self.dest)
@@ -620,8 +884,11 @@ def generate_code(program, regalloc):
     generator = ArmCodeGenerator()
 
     res = '\t.text\n'
-    res += '\t.arch armv6\n'
-    res += '\t.syntax unified\n'
+
+    if generator.type == 'arm':
+        res += '\t.arch armv6\n'
+        res += '\t.syntax unified\n'
+
     return res + program.codegen(regalloc, generator)
 
 

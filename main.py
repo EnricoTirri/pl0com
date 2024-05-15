@@ -51,7 +51,7 @@ def compile_program(text):
     print("\n\nREGALLOC\n\n")
 
     # by changing this line, we limit the number of available registers
-    ra = LinearScanRegisterAllocator(cfg, 3)
+    ra = LinearScanRegisterAllocator(cfg, 11)
     reg_alloc = ra()
     print(reg_alloc)
 
@@ -71,8 +71,7 @@ if __name__ == '__main__':
         exit(1)
 
     for source_file in sys.argv[1:]:
-        # let's solve later the problem of what to call the assembly file
-        output_file = "out.s"
+        output_file = source_file.split('/')[-1].split('.')[0] + '.s'
 
         with open(source_file, 'r') as f:
             source = f.read()
