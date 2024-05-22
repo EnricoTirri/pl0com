@@ -11,7 +11,7 @@ from regalloc import *
 from codegen import *
 
 
-def compile_program(text):
+def compile_program(text, code_generator):
     lex = lexer.Lexer(text)
     pars = parser.Parser(lex)
     res = pars.program()
@@ -51,18 +51,19 @@ def compile_program(text):
     print("\n\nREGALLOC\n\n")
 
     # by changing this line, we limit the number of available registers
-    ra = LinearScanRegisterAllocator(cfg, 11)
+    ra = LinearScanRegisterAllocator(cfg, 3)
     reg_alloc = ra()
     print(reg_alloc)
 
     print("\n\nCODEGEN\n\n")
-    code = generate_code(res, reg_alloc)
+    code = generate_code(res, reg_alloc, code_generator)
     print(code)
 
     return code
 
 
 import sys
+import codegen
 
 
 if __name__ == '__main__':
@@ -75,7 +76,7 @@ if __name__ == '__main__':
 
         with open(source_file, 'r') as f:
             source = f.read()
-            code   = compile_program(source)
+            code   = compile_program(source, codegen.x86CodeGenerator())
 
         with open(output_file, 'w') as f:
             f.write(code)

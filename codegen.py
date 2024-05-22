@@ -38,6 +38,10 @@ class x86CodeGenerator():
         return f'# {what}\n'
 
 
+    def format_imm(self, value):
+        return f'${value}'
+
+
     def get_register_string(self, regid):
         return self.map[regid]
 
@@ -89,6 +93,13 @@ class x86CodeGenerator():
         op2  = self.get_register_string(op2)
 
         return f'\ttst {op1}, {op2}\n'
+    
+
+    def copy_if_different(self, r1, r2):
+        if r1 != r2:
+            return self.mov_reg_to_reg(r1, r2)
+        else:
+            return ''
 
 
     def compare(self, op1, op2):
@@ -99,31 +110,22 @@ class x86CodeGenerator():
 
 
     def add(self, dest, op1, op2):
-        dest = self.get_register_string(dest)
-        op1  = self.get_register_string(op1)
-        op2  = self.get_register_string(op2)
-
-        return f'\tadd {op1}, {op2}, {dest}\n'
+        rdest = self.get_register_string(dest)
+        return self.copy_if_different(dest, op1) + f'\tadd {op2}, {rdest}\n'
 
 
     def addi(self, dest, src, imm):
-        dest = self.get_register_string(dest)
-        src  = self.get_register_string(src)
-        return f'\tadd {src}, ${imm}, {dest}\n'
+        rdest = self.get_register_string(dest)
+        return self.copy_if_different(dest, src) + f'\tadd ${imm}, {rdest}\n'
 
 
     def andi(self, dest, src, imm):
-        dest = self.get_register_string(dest)
-        src  = self.get_register_string(src)
-        return f'\tand ${imm}, {src}, {dest}\n'
+        rdest = self.get_register_string(dest)
+        return self.copy_if_different(dest, src) + f'\tand ${imm}, {rdest}\n'
 
 
     def sub(self, dest, op1, op2):
-        dest = self.get_register_string(dest)
-        op1  = self.get_register_string(op1)
-        op2  = self.get_register_string(op2)
-
-        return f'\tsub {op1}, {op2}, {dest} \n'
+        return self.copy_if_different(dest, src) + f'\tsub ${imm}, {dest}\n'
 
 
     def subi(self, dest, src, imm):
@@ -282,6 +284,10 @@ class ArmCodeGenerator():
 
     def comment(self, what):
         return f'\t@ {what}\n'
+
+
+    def format_imm(self, value):
+        return f'#{value}'
 
 
     def get_register_string(self, regid):
@@ -880,16 +886,14 @@ def unarystat_codegen(self, regalloc, generator):
     return res
 
 
-def generate_code(program, regalloc):
-    generator = ArmCodeGenerator()
-
+def generate_code(program, regalloc, code_generator):
     res = '\t.text\n'
 
-    if generator.type == 'arm':
+    if code_generator.type == 'arm':
         res += '\t.arch armv6\n'
         res += '\t.syntax unified\n'
 
-    return res + program.codegen(regalloc, generator)
+    return res + program.codegen(regalloc, code_generator)
 
 
 Symbol        .codegen = symbol_codegen

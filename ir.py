@@ -788,6 +788,9 @@ class BinStat(Stat):  # low-level node
     def human_repr(self):
         return repr(self.dest) + ' <- ' + repr(self.srca) + ' ' + self.op + ' ' + repr(self.srcb)
 
+    def ternary_to_binary(self):
+        pass
+
 
 class UnaryStat(Stat):  # low-level node
     def __init__(self, parent=None, dest=None, op=None, src=None, symtab=None):
